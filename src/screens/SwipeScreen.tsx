@@ -21,8 +21,10 @@ const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3;
 export default function SwipeScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
-  const { categoryId, categoryName } = route.params;
+  const { categoryId: paramCategoryId, categoryName: paramCategoryName } = route.params ?? {};
 
+  const [categoryId, setCategoryId] = useState<string | null>(paramCategoryId || null);
+  const [categoryName, setCategoryName] = useState<string>(paramCategoryName || '');
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -32,16 +34,43 @@ export default function SwipeScreen() {
   const swipeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    fetchSubmissions();
+    init();
   }, []);
 
-  async function fetchSubmissions() {
+  async function init() {
+    // If no categoryId from params, fetch the first voting category
+    let activeCategoryId = paramCategoryId;
+    if (!activeCategoryId) {
+      const { data } = await supabase
+        .from('categories')
+        .select('id, name')
+        .eq('status', 'voting')
+        .limit(1)
+        .single();
+      if (data) {
+        activeCategoryId = data.id;
+        setCategoryId(data.id);
+        setCategoryName(data.name);
+      }
+    }
+
+    if (activeCategoryId) {
+      fetchSubmissions(activeCategoryId);
+    } else {
+      setLoading(false);
+    }
+  }
+
+  async function fetchSubmissions(catId: string) {
     const { data, error } = await supabase
       .from('submissions')
       .select('*, profiles(display_name)')
-      .eq('category_id', categoryId)
+      .eq('category_id', catId)
       .eq('status', 'approved')
       .order('created_at');
+
+    // Debug
+    Alert.alert('Debug', `Category ID: ${catId}\nFound: ${data?.length || 0} submissions\nError: ${error?.message || 'none'}`);
 
     if (!error && data) {
       // Shuffle so every voter sees a different order

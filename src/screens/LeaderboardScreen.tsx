@@ -16,17 +16,61 @@ const MEDAL = ['🥇', '🥈', '🥉'];
 
 export default function LeaderboardScreen() {
   const route = useRoute<any>();
-  const { categoryId, categoryName } = route.params ?? {};
+  const { categoryId: paramCategoryId, categoryName: paramCategoryName } = route.params ?? {};
 
+  const [categoryId, setCategoryId] = useState<string | null>(paramCategoryId || null);
+  const [categoryName, setCategoryName] = useState<string>(paramCategoryName || '');
   const [entries, setEntries] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchLeaderboard = useCallback(async () => {
+  useEffect(() => {
+    init();
+  }, []);
+
+  async function init() {
+    // If no categoryId from params, fetch the first voting category
+    let activeCategoryId = paramCategoryId;
+    if (!activeCategoryId) {
+      const { data } = await supabase
+        .from('categories')
+        .select('id, name')
+        .eq('status', 'voting')
+        .limit(1)
+        .single();
+      if (data) {
+        activeCategoryId = data.id;
+        setCategoryId(data.id);
+        setCategoryName(data.name);
+      }
+    }
+
+    if (activeCategoryId) {
+      fetchLeaderboard(activeCategoryId);
+      subscribeToUpdates(activeCategoryId);
+    } else {
+      setLoading(false);
+    }
+  }
+
+  function subscribeToUpdates(catId: string) {
+    const channel = supabase
+      .channel(`leaderboard:${catId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'submissions', filter: `category_id=eq.${catId}` },
+        () => fetchLeaderboard(catId)
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }
+
+  async function fetchLeaderboard(catId: string) {
     const { data, error } = await supabase
       .from('submissions')
       .select('*, profiles(display_name)')
-      .eq('category_id', categoryId)
+      .eq('category_id', catId)
       .eq('status', 'approved')
       .order('score', { ascending: false })
       .limit(50);
@@ -36,23 +80,14 @@ export default function LeaderboardScreen() {
     }
     setLoading(false);
     setRefreshing(false);
-  }, [categoryId]);
+  }
 
-  useEffect(() => {
-    fetchLeaderboard();
-
-    // Real-time score updates
-    const channel = supabase
-      .channel(`leaderboard:${categoryId}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'submissions', filter: `category_id=eq.${categoryId}` },
-        () => fetchLeaderboard()
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchLeaderboard, categoryId]);
+  const refreshLeaderboard = () => {
+    if (categoryId) {
+      setRefreshing(true);
+      fetchLeaderboard(categoryId);
+    }
+  };
 
   function renderItem({ item, index }: { item: Submission; index: number }) {
     const medal = MEDAL[index];
@@ -100,7 +135,7 @@ export default function LeaderboardScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); fetchLeaderboard(); }}
+            onRefresh={refreshLeaderboard}
             tintColor="#6C63FF"
           />
         }

@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 
@@ -73,17 +74,23 @@ export default function SubmitScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not logged in');
 
-      // Upload photo to Supabase Storage
+      // Upload photo to Supabase Storage using FormData
       const ext = imageUri.split('.').pop() ?? 'jpg';
       const fileName = `${user.id}-${Date.now()}.${ext}`;
       const filePath = `submissions/${categoryId}/${fileName}`;
 
-      const response = await fetch(imageUri);
-      const blob = await response.blob();
+      const formData = new FormData();
+      formData.append('file', {
+        uri: imageUri,
+        name: fileName,
+        type: `image/${ext}`,
+      } as any);
 
-      const { error: uploadError } = await supabase.storage
+      const { data, error: uploadError } = await supabase.storage
         .from('photos')
-        .upload(filePath, blob, { contentType: `image/${ext}` });
+        .upload(filePath, formData as any, {
+          contentType: `image/${ext}`,
+        });
 
       if (uploadError) throw uploadError;
 

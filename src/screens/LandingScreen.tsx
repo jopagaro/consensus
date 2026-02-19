@@ -53,8 +53,8 @@ function CategoryCard({ category }: { category: Category }) {
       });
     } else if (isVoting) {
       navigation.navigate('Tabs', {
-        screen: 'Vote',
-        params: { categoryId: category.id, categoryName: category.name },
+        categoryId: category.id,
+        categoryName: category.name,
       });
     }
   }

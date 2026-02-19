@@ -35,24 +35,24 @@ function VotingTabs({ route }: any) {
     >
       <Tab.Screen
         name="Vote"
-        component={SwipeScreen}
-        initialParams={{ categoryId, categoryName }}
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIcon label="Vote" emoji="👆" focused={focused} />
           ),
         }}
-      />
+      >
+        {(props) => <SwipeScreen {...props} route={{ ...props.route, params: { categoryId, categoryName } }} />}
+      </Tab.Screen>
       <Tab.Screen
         name="Leaderboard"
-        component={LeaderboardScreen}
-        initialParams={{ categoryId, categoryName }}
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIcon label="Ranks" emoji="🏆" focused={focused} />
           ),
         }}
-      />
+      >
+        {(props) => <LeaderboardScreen {...props} route={{ ...props.route, params: { categoryId, categoryName } }} />}
+      </Tab.Screen>
     </Tab.Navigator>
   );
 }
